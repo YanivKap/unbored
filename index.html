@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>unbored</title>
+<meta name="description" content="דברים מעניינים, אחד בכל פעם.">
+<meta name="theme-color" content="#0d0f12">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root {
+    --bg: #0d0f12;
+    --fg: #e9e6e1;
+    --muted: #868d97;
+    --line: #1e232a;
+    --accent: #6fa8ff;
+    --card: #14181d;
+    --read: 19px;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f6f4; --fg: #15181c; --muted: #5d646d;
+    --line: #e2e0dc; --accent: #1f5fd0; --card: #ffffff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    overscroll-behavior: none; touch-action: pan-y;
+  }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "Noto Sans Hebrew", "Heebo", "Assistant", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    font-size: var(--read); line-height: 1.7;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  #progress { height: 3px; background: var(--line); flex: none; }
+  #bar { height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+
+  #top {
+    flex: none; display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 9px 18px 0; font-size: 13px; color: var(--muted); min-height: 34px;
+  }
+  .linkbtn {
+    background: none; border: none; color: var(--muted); font: inherit; font-size: 13px;
+    padding: 4px 2px; cursor: pointer;
+  }
+  .linkbtn:active { opacity: .6; }
+  #dayLabel { color: var(--accent); }
+  #dayLabel[hidden] { display: none; }
+
+  #stage { flex: 1; position: relative; display: flex; overflow: hidden; }
+  .card {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 14px; padding: 14px 20px 16px;
+    transition: transform .26s cubic-bezier(.22,.61,.36,1), opacity .26s ease;
+  }
+  /* Cards on their way out must never swallow taps meant for the live card. */
+  .card.leaving { pointer-events: none; }
+  .card.enter { transform: translateY(26px); opacity: 0; }
+  .card.leave-up { transform: translateY(-26px); opacity: 0; }
+  .card.leave-down { transform: translateY(26px); opacity: 0; }
+
+  .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .tag {
+    background: var(--card); border: 1px solid var(--line);
+    padding: 3px 10px; border-radius: 999px; font-size: 12.5px; color: var(--fg);
+  }
+  .tag.stock { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); }
+  h1 { margin: 0; font-size: 1.42em; line-height: 1.38; font-weight: 650; letter-spacing: -0.01em; }
+  .text { margin: 0; font-size: 1em; color: color-mix(in srgb, var(--fg) 88%, var(--bg)); overflow-y: auto; }
+  .src {
+    margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13.5px;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  }
+  .src a { color: var(--accent); text-decoration: none; }
+  .src a:active { opacity: .6; }
+  .star {
+    background: none; border: none; padding: 6px; margin: -6px; cursor: pointer;
+    color: var(--muted); display: flex; line-height: 0;
+    transition: color .18s ease, transform .18s ease;
+  }
+  .star svg { width: 23px; height: 23px; }
+  .star[aria-pressed="true"] { color: #f5c84c; }
+  .star:active { transform: scale(.85); }
+  .card[lang="en"] { direction: ltr; text-align: left; }
+
+  #nav { flex: none; display: flex; justify-content: space-between; align-items: center;
+         padding: 10px 20px 14px; font-size: 13px; color: var(--muted); }
+  #nav button {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  #nav button:disabled { opacity: .35; }
+  #count { font-variant-numeric: tabular-nums; }
+
+  .end { text-align: center; display: flex; flex-direction: column; justify-content: center;
+         align-items: center; gap: 10px; height: 100%; padding: 0 28px; }
+  .end h2 { font-size: 1.5em; margin: 0; font-weight: 650; }
+  .end p { margin: 0; color: var(--muted); }
+  .end button {
+    margin-top: 10px; background: none; border: 1px solid var(--line); color: var(--fg);
+    border-radius: 999px; padding: 9px 20px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+
+  /* archive sheet */
+  #sheet {
+    position: fixed; inset: 0; background: var(--bg);
+    display: none; flex-direction: column; z-index: 10;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  #sheet.open { display: flex; }
+  #sheetHead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 10px; border-bottom: 1px solid var(--line);
+  }
+  #sheetHead h2 { margin: 0; font-size: 1.1em; font-weight: 650; }
+  #days { overflow-y: auto; padding: 6px 12px 20px; }
+  #searchWrap { padding: 12px 20px 6px; display: none; }
+  #searchWrap.on { display: block; }
+  #q {
+    width: 100%; background: var(--card); border: 1px solid var(--line);
+    color: var(--fg); font: inherit; font-size: 16px; border-radius: 12px;
+    padding: 11px 14px; outline: none;
+  }
+  #q:focus { border-color: var(--accent); }
+  #q::placeholder { color: var(--muted); }
+  .day .hit { color: var(--muted); font-size: 12.5px; display: block; margin-top: 3px; }
+  .day mark { background: none; color: var(--accent); font-weight: 650; }
+  .day {
+    width: 100%; text-align: inherit; background: none; border: none;
+    border-bottom: 1px solid var(--line); color: var(--fg);
+    font: inherit; font-size: 15px; padding: 14px 8px; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  }
+  .day:active { background: var(--card); }
+  .day .n { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .day[aria-current="true"] { color: var(--accent); }
+  @media (min-height: 760px) { :root { --read: 20px; } }
+</style>
+</head>
+<body>
+  <div id="progress"><div id="bar"></div></div>
+  <div id="top">
+    <span>
+      <button class="linkbtn" id="archiveBtn" type="button">ארכיון</button>
+      <button class="linkbtn" id="favBtn" type="button">מועדפים</button>
+      <button class="linkbtn" id="searchBtn" type="button">חיפוש</button>
+    </span>
+    <button class="linkbtn" id="dayLabel" type="button" hidden></button>
+  </div>
+  <div id="stage"></div>
+  <div id="nav">
+    <button id="prev" type="button">הקודם</button>
+    <span id="count"></span>
+    <button id="next" type="button">הבא</button>
+  </div>
+
+  <div id="sheet" role="dialog" aria-modal="true" aria-label="ארכיון">
+    <div id="sheetHead">
+      <h2 id="sheetTitle">ארכיון</h2>
+      <button class="linkbtn" id="closeSheet" type="button">סגור</button>
+    </div>
+    <div id="searchWrap"><input id="q" type="search" autocomplete="off"
+         placeholder="חיפוש בכל מה שהיה — כותרת, נושא או מקור" aria-label="חיפוש"></div>
+    <div id="days"></div>
+  </div>
+
+<script>
+const POS_KEY = "unbored.pos.v2";
+const FAVS_KEY = "unbored.favs.v1";
+
+// Filled by CSS `color`; the outline version just has no fill.
+const STAR = `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor"
+  stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path
+  d="M12 3.1l2.73 5.53 6.1.89-4.41 4.3 1.04 6.08L12 17.03l-5.46 2.87 1.04-6.08-4.41-4.3 6.1-.89z"/></svg>`;
+const stage = document.getElementById("stage");
+const bar = document.getElementById("bar");
+const countEl = document.getElementById("count");
+const prevBtn = document.getElementById("prev");
+const nextBtn = document.getElementById("next");
+const sheet = document.getElementById("sheet");
+const daysEl = document.getElementById("days");
+const dayLabel = document.getElementById("dayLabel");
+
+const store = {
+  get(k, fb) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+let items = [];
+let i = 0;
+let deckDate = null;     // the day currently being read
+let isArchive = false;   // true when reading a past day
+let mode = "today";      // "today" | "archive" | "favs"
+
+/**
+ * Favourites store whole items, not ids: a card must stay readable even after
+ * its deck has rotated out, and offline too.
+ */
+function favs() { return store.get(FAVS_KEY, []); }
+function isFav(id) { return favs().some((f) => f.id === id); }
+
+function toggleFav(item) {
+  const list = favs();
+  const at = list.findIndex((f) => f.id === item.id);
+  if (at >= 0) list.splice(at, 1);
+  else list.unshift({ ...item, savedAt: new Date().toISOString() });
+  store.set(FAVS_KEY, list.slice(0, 500));
+  return at < 0;
+}
+
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function fmtDate(iso) {
+  try {
+    const d = new Date(iso);
+    const days = Math.round((Date.now() - d) / 86400000);
+    if (days <= 0) return "היום";
+    if (days === 1) return "אתמול";
+    if (days < 30) return `לפני ${days} ימים`;
+    return d.toLocaleDateString("he-IL", { year: "numeric", month: "long" });
+  } catch { return ""; }
+}
+
+function fmtDay(key) {
+  try {
+    if (key === todayKey()) return "היום";
+    const d = new Date(key + "T12:00:00");
+    const diff = Math.round((Date.now() - d) / 86400000);
+    if (diff === 1) return "אתמול";
+    return d.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
+  } catch { return key; }
+}
+
+function render(dir) {
+  // Remove every card currently on stage, not just the first one. Advancing
+  // faster than the transition used to leave cards stacked on top of each other.
+  const leaving = Array.from(stage.querySelectorAll(".card"));
+  for (const el of leaving) {
+    el.classList.add("leaving", dir === "back" ? "leave-down" : "leave-up");
+  }
+  setTimeout(() => { for (const el of leaving) el.remove(); }, 300);
+
+  const card = document.createElement("article");
+  card.className = "card enter";
+
+  if (i >= items.length) {
+    card.innerHTML = `<div class="end">
+        <h2>זה הכל${isArchive ? "" : " להיום"}</h2>
+        <p>${items.length} פריטים${isArchive ? ` מ־${esc(fmtDay(deckDate))}` : ". מחר יהיו חדשים."}</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <button type="button" data-act="archive">ארכיון</button>
+          <button type="button" data-act="favs">מועדפים</button>
+          <button type="button" data-act="search">חיפוש</button>
+        </div>
+      </div>`;
+  } else {
+    const it = items[i];
+    card.lang = it.lang;
+    card.innerHTML = `
+      <div class="meta">
+        <span class="tag ${it.kind === "stock" ? "stock" : ""}">${esc(it.tag)}</span>
+        <span>${esc(it.source)}</span>
+        ${it.tag === "ספרים" ? "" : `<span>·</span><span>${esc(fmtDate(it.date))}</span>`}
+      </div>
+      <h1>${esc(it.title)}</h1>
+      <p class="text">${esc(it.text)}</p>
+      <div class="src">
+        <a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">
+          ${it.lang === "en" ? "Read the original" : "לכתבה המקורית"} ↗</a>
+        <button class="star" type="button" data-act="fav" aria-pressed="${isFav(it.id)}"
+                aria-label="${it.lang === "en" ? "Save for later" : "שמירה למועדפים"}">${STAR}</button>
+      </div>`;
+  }
+
+  stage.appendChild(card);
+  requestAnimationFrame(() => requestAnimationFrame(() => { card.className = "card"; }));
+  update();
+}
+
+function update() {
+  const shown = Math.min(i + 1, items.length);
+  bar.style.width = `${(Math.min(i, items.length) / Math.max(items.length, 1)) * 100}%`;
+  countEl.textContent = i >= items.length ? "סוף" : `${shown} / ${items.length}`;
+  prevBtn.disabled = i === 0;
+  nextBtn.disabled = i >= items.length;
+  // Doubles as the way back: you are never stuck in a past day or in favourites.
+  const away = mode !== "today";
+  dayLabel.hidden = !away;
+  dayLabel.textContent = away
+    ? `${mode === "favs" ? "מועדפים" : mode === "search" ? "תוצאות חיפוש" : fmtDay(deckDate)} · חזרה להיום ✕`
+    : "";
+  // Only today's position is worth resuming.
+  if (mode === "today") store.set(POS_KEY, { date: todayKey(), i });
+}
+
+function go(n) {
+  const target = Math.max(0, Math.min(items.length, n));
+  if (target === i) return;
+  const dir = target < i ? "back" : "fwd";
+  i = target;
+  render(dir);
+}
+
+nextBtn.onclick = () => go(i + 1);
+prevBtn.onclick = () => go(i - 1);
+stage.addEventListener("click", (e) => {
+  const act = e.target.closest?.("[data-act]")?.dataset.act;
+  if (act === "archive") openArchive();
+  if (act === "favs") openFavs();
+  if (act === "search") openSearch();
+  if (act === "fav") {
+    const btn = e.target.closest("[data-act='fav']");
+    const on = toggleFav(items[i]);
+    btn.setAttribute("aria-pressed", String(on));
+  }
+});
+
+addEventListener("keydown", (e) => {
+  if (sheet.classList.contains("open")) {
+    if (e.key === "Escape") closeArchive();
+    return;
+  }
+  if (["ArrowDown", "ArrowRight", " ", "PageDown"].includes(e.key)) { e.preventDefault(); go(i + 1); }
+  if (["ArrowUp", "ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(i - 1); }
+});
+
+let y0 = null, x0 = null;
+stage.addEventListener("touchstart", (e) => { y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; }, { passive: true });
+stage.addEventListener("touchend", (e) => {
+  if (y0 === null) return;
+  const dy = e.changedTouches[0].clientY - y0;
+  const dx = e.changedTouches[0].clientX - x0;
+  if (Math.abs(dy) > 45 && Math.abs(dy) > Math.abs(dx)) go(dy < 0 ? i + 1 : i - 1);
+  y0 = x0 = null;
+}, { passive: true });
+
+/* ---------- archive ---------- */
+
+dayLabel.onclick = () => loadDeck(null);
+document.getElementById("archiveBtn").onclick = openArchive;
+document.getElementById("favBtn").onclick = openFavs;
+document.getElementById("closeSheet").onclick = closeArchive;
+
+function closeArchive() {
+  sheet.classList.remove("open");
+  document.getElementById("searchWrap").classList.remove("on");
+}
+
+/* ---------- search ---------- */
+
+let searchIndex = null;   // lazily fetched, then kept for the session
+let searchHits = [];
+
+/**
+ * Hebrew-aware normalisation: drop niqqud and geresh/gershayim so that
+ * "דוד" matches "דָּוִד" and "צה\"ל" matches "צהל". Prefixed forms
+ * ("בחלל" for "חלל") fall out of plain substring matching.
+ */
+function norm(v) {
+  return String(v ?? "")
+    .replace(/[\u0591-\u05C7]/g, "")
+    .replace(/[\u05F3\u05F4'"`]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function getIndex() {
+  if (searchIndex) return searchIndex;
+  try {
+    const d = await fetch("search.json", { cache: "no-cache" }).then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    });
+    searchIndex = (d.items ?? []).map((it) => ({
+      it,
+      hay: norm(`${it.title} ${it.text} ${it.source} ${it.tag}`),
+    }));
+  } catch {
+    // Offline, or the index has not been built yet: fall back to today's deck,
+    // which is already in memory.
+    searchIndex = items.map((it) => ({
+      it, hay: norm(`${it.title} ${it.text} ${it.source} ${it.tag}`),
+    }));
+  }
+  return searchIndex;
+}
+
+function runSearch(raw) {
+  const terms = norm(raw).split(" ").filter(Boolean);
+  if (!terms.length) return [];
+  // Every term must appear somewhere in the card.
+  return searchIndex.filter((e) => terms.every((t) => e.hay.includes(t)))
+    .slice(0, 300)
+    .map((e) => e.it);
+}
+
+function snippet(text, term) {
+  const lower = String(text).toLowerCase();   // same length, so offsets line up
+  const at = lower.indexOf(term);
+  if (at < 0) return String(text).slice(0, 95);
+  const start = Math.max(0, at - 38);
+  return (start > 0 ? "…" : "") + String(text).slice(start, start + 112) + "…";
+}
+
+function highlight(plain, term) {
+  const safe = esc(plain);
+  if (!term) return safe;
+  const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  return safe.replace(rx, (m) => `<mark>${m}</mark>`);
+}
+
+async function openSearch() {
+  sheet.classList.add("open");
+  document.getElementById("sheetTitle").textContent = "חיפוש";
+  document.getElementById("searchWrap").classList.add("on");
+  daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">טוען…</p>`;
+  await getIndex();
+  const q = document.getElementById("q");
+  daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">
+    ${searchIndex.length} פריטים זמינים לחיפוש.</p>`;
+  q.focus();
+  if (q.value.trim()) paintResults(q.value);
+}
+
+function paintResults(raw) {
+  const terms = norm(raw).split(" ").filter(Boolean);
+  if (!terms.length) {
+    daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">
+      ${searchIndex.length} פריטים זמינים לחיפוש.</p>`;
+    return;
+  }
+  searchHits = runSearch(raw);
+  if (!searchHits.length) {
+    daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">
+      לא נמצאו תוצאות ל״${esc(raw.trim())}״.</p>`;
+    return;
+  }
+  const term = terms[0];
+  daysEl.innerHTML = "";
+  searchHits.forEach((it, n) => {
+    const b = document.createElement("button");
+    b.className = "day";
+    b.type = "button";
+    b.innerHTML = `<span>${highlight(it.title, term)}
+        <span class="hit">${highlight(snippet(it.text, term), term)}</span></span>
+      <span class="n">${esc(it.day ? fmtDay(it.day) : it.tag)}</span>`;
+    b.onclick = () => {
+      closeArchive();
+      items = searchHits;
+      mode = "search";
+      isArchive = false;
+      deckDate = null;
+      i = n;
+      render("fwd");
+    };
+    daysEl.appendChild(b);
+  });
+}
+
+document.getElementById("searchBtn").onclick = openSearch;
+{
+  const q = document.getElementById("q");
+  let t = null;
+  q.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(() => paintResults(q.value), 140);
+  });
+}
+
+function openFavs() {
+  sheet.classList.add("open");
+  document.getElementById("searchWrap").classList.remove("on");
+  document.getElementById("sheetTitle").textContent = "מועדפים";
+  const list = favs();
+  if (!list.length) {
+    daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">
+      עוד לא שמרת כלום. הקש על הכוכב בתחתית כרטיס כדי לשמור אותו לאחר כך.</p>`;
+    return;
+  }
+  daysEl.innerHTML = "";
+  list.forEach((it, n) => {
+    const b = document.createElement("button");
+    b.className = "day";
+    b.type = "button";
+    b.innerHTML = `<span>${esc(it.title)}</span><span class="n">${esc(it.tag)}</span>`;
+    b.onclick = () => {
+      closeArchive();
+      items = favs();
+      mode = "favs";
+      isArchive = false;
+      deckDate = null;
+      i = Math.min(n, items.length - 1);
+      render("fwd");
+    };
+    daysEl.appendChild(b);
+  });
+}
+
+async function openArchive() {
+  sheet.classList.add("open");
+  document.getElementById("searchWrap").classList.remove("on");
+  document.getElementById("sheetTitle").textContent = "ארכיון";
+  daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">טוען…</p>`;
+  let index;
+  try {
+    index = await fetch("decks/index.json", { cache: "no-cache" }).then((r) => r.json());
+  } catch {
+    daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">הארכיון לא זמין במצב לא מקוון.</p>`;
+    return;
+  }
+  const days = index.days ?? [];
+  if (!days.length) {
+    daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">אין עדיין ימים קודמים.</p>`;
+    return;
+  }
+  daysEl.innerHTML = "";
+  for (const d of days) {
+    const b = document.createElement("button");
+    b.className = "day";
+    b.type = "button";
+    if (d.date === deckDate) b.setAttribute("aria-current", "true");
+    b.innerHTML = `<span>${esc(fmtDay(d.date))}</span><span class="n">${d.count} פריטים</span>`;
+    b.onclick = () => { closeArchive(); loadDeck(d.date === todayKey() ? null : d.date); };
+    daysEl.appendChild(b);
+  }
+}
+
+/* ---------- loading ---------- */
+
+async function loadDeck(date) {
+  const path = date ? `decks/${date}.json` : "feed.json";
+  let feed;
+  try {
+    feed = await fetch(path, { cache: "no-cache" }).then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    });
+  } catch {
+    stage.innerHTML = `<div class="card"><div class="end">
+      <h2>${date ? "היום הזה לא נמצא" : "אין חיבור"}</h2>
+      <p>${date ? "נסה יום אחר בארכיון." : "נסה שוב כשיש אינטרנט."}</p>
+      <button type="button" data-act="archive">ארכיון</button>
+      <button type="button" data-act="favs">מועדפים</button></div></div>`;
+    return;
+  }
+
+  // Show the whole deck. Server-side history already guarantees the same item
+  // is never served on two different days, so filtering read cards here only
+  // made them vanish when the app was reopened.
+  items = feed.items ?? [];
+  deckDate = date ?? (feed.generated ?? "").slice(0, 10) ?? todayKey();
+  isArchive = Boolean(date) && date !== todayKey();
+  mode = isArchive ? "archive" : "today";
+
+  const pos = store.get(POS_KEY, null);
+  i = mode === "today" && pos && pos.date === todayKey() ? Math.min(pos.i, items.length) : 0;
+  render("fwd");
+}
+
+loadDeck(null);
+
+/**
+ * Keeping an installed copy current.
+ *
+ * An installed PWA can sit on an old service worker for a long time and keep
+ * serving the shell and deck it cached on install — which is how the installed
+ * app and the browser ended up showing different first cards. So: never let the
+ * browser cache sw.js itself, check for a new worker whenever the app is
+ * brought to the foreground, and reload once when one takes over.
+ */
+if ("serviceWorker" in navigator) {
+  addEventListener("load", async () => {
+    let reg;
+    try {
+      reg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
+    } catch { return; }
+    reg.update().catch(() => {});
+
+    let reloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloading) return;      // guard against a reload loop
+      reloading = true;
+      location.reload();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") reg.update().catch(() => {});
+    });
+  });
+}
+
+/**
+ * Reopening the app should show the current day, not whatever was loaded when
+ * it was last opened — an installed app can stay resident across midnight.
+ */
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || mode !== "today") return;
+  try {
+    const fresh = await fetch("feed.json", { cache: "no-store" }).then((r) => r.json());
+    const sameDeck = fresh.items?.[0]?.id === items[0]?.id;
+    if (!sameDeck) {
+      const newDay = (fresh.generated ?? "").slice(0, 10) !== deckDate;
+      items = fresh.items ?? [];
+      deckDate = (fresh.generated ?? "").slice(0, 10);
+      if (newDay) i = 0;
+      else i = Math.min(i, items.length);
+      render("fwd");
+    }
+  } catch { /* offline: keep showing what we have */ }
+});
+</script>
+</body>
+</html>
