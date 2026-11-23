@@ -41,31 +41,3 @@ jobs:
             git commit -m "deck: $(date -u +%Y-%m-%d)"
             git push
           fi
-
-  # The archive is timeless, so it only needs topping up occasionally.
-  archive:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event_name == 'schedule' && fromJSON(github.run_number) % 30 == 0
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Top up the archive
-        run: node scripts/archive.ts 6000
-      - name: Commit the archive
-        run: |
-          git config user.name  "unbored bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase
-          git add state/archive.json
-          if git diff --staged --quiet; then
-            echo "archive unchanged"
-          else
-            git commit -m "archive: top up"
-            git push
-          fi
