@@ -9,7 +9,7 @@
  * and stays full on quiet days. Within each pool, sources are taken
  * round-robin so no single feed dominates.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { titleFingerprint } from "./lib/clean.ts";
 import { reject, score, type Candidate } from "./lib/filter.ts";
 import { deck } from "./lib/config.ts";
@@ -123,6 +123,33 @@ writeFileSync(
   u("../public/decks/index.json"),
   JSON.stringify({ updated: feed.generated, days: days.slice(0, 180) }, null, 1),
 );
+
+/**
+ * Search index over every archived deck, so the app can search the whole
+ * history with one fetch instead of pulling each day's file.
+ */
+const keepDays = new Set(days.slice(0, 180).map((d) => d.date));
+const searchItems: Array<Record<string, unknown>> = [];
+const seenIds = new Set<string>();
+for (const file of readdirSync(u("../public/decks/")).sort().reverse()) {
+  if (!file.endsWith(".json") || file === "index.json") continue;
+  const day = file.replace(/\.json$/, "");
+  if (!keepDays.has(day)) continue;
+  try {
+    const d = JSON.parse(readFileSync(u(`../public/decks/${file}`), "utf8"));
+    for (const it of d.items ?? []) {
+      if (seenIds.has(it.id)) continue;
+      seenIds.add(it.id);
+      searchItems.push({ ...it, day });
+    }
+  } catch { /* skip an unreadable deck rather than failing the build */ }
+}
+writeFileSync(
+  u("../public/search.json"),
+  JSON.stringify({ updated: feed.generated, count: searchItems.length, items: searchItems }),
+);
+const kb = Math.round(JSON.stringify(searchItems).length / 1024);
+console.log(`search index: ${searchItems.length} items across ${keepDays.size} day(s), ${kb} KB`);
 
 const served = [...ordered.map((c) => c.id), ...seen].slice(0, deck.seenHistoryCap);
 writeFileSync(u("../state/seen.json"), JSON.stringify(served, null, 0));

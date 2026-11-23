@@ -30,12 +30,19 @@ sources ──► fetch.ts ──► build.ts ──► public/feed.json ──�
 |---|---|
 | **Swipe up / down** | next and previous card — nothing is ever skipped past for good |
 | **★ star** | saves a card to favourites, kept as a whole item in local storage so it stays readable after its deck rotates out, and offline |
+| **חיפוש** | searches every card ever served, not just today — results open as their own swipeable deck |
 | **ארכיון** | any previous day's deck, from `public/decks/` |
 | **מועדפים** | everything you starred, readable as its own deck |
 | **day label** | shown only when you are away from today; tap it to come back |
 
 Reading position for today is remembered, so reopening the app resumes where
 you stopped rather than starting over or hiding what you already read.
+
+Search runs against `public/search.json`, a flat index over every archived
+deck that `build.ts` rebuilds each night. It is fetched lazily on the first
+search and then cached, so it costs nothing until used. Matching is plain
+substring over a normalised string, which drops niqqud and geresh and means a
+Hebrew prefix works naturally — `חלל` finds `בחלל`.
 
 ### Two pools
 

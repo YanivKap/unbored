@@ -121,6 +121,17 @@
   }
   #sheetHead h2 { margin: 0; font-size: 1.1em; font-weight: 650; }
   #days { overflow-y: auto; padding: 6px 12px 20px; }
+  #searchWrap { padding: 12px 20px 6px; display: none; }
+  #searchWrap.on { display: block; }
+  #q {
+    width: 100%; background: var(--card); border: 1px solid var(--line);
+    color: var(--fg); font: inherit; font-size: 16px; border-radius: 12px;
+    padding: 11px 14px; outline: none;
+  }
+  #q:focus { border-color: var(--accent); }
+  #q::placeholder { color: var(--muted); }
+  .day .hit { color: var(--muted); font-size: 12.5px; display: block; margin-top: 3px; }
+  .day mark { background: none; color: var(--accent); font-weight: 650; }
   .day {
     width: 100%; text-align: inherit; background: none; border: none;
     border-bottom: 1px solid var(--line); color: var(--fg);
@@ -139,6 +150,7 @@
     <span>
       <button class="linkbtn" id="archiveBtn" type="button">ארכיון</button>
       <button class="linkbtn" id="favBtn" type="button">מועדפים</button>
+      <button class="linkbtn" id="searchBtn" type="button">חיפוש</button>
     </span>
     <button class="linkbtn" id="dayLabel" type="button" hidden></button>
   </div>
@@ -154,6 +166,8 @@
       <h2 id="sheetTitle">ארכיון</h2>
       <button class="linkbtn" id="closeSheet" type="button">סגור</button>
     </div>
+    <div id="searchWrap"><input id="q" type="search" autocomplete="off"
+         placeholder="חיפוש בכל מה שהיה — כותרת, נושא או מקור" aria-label="חיפוש"></div>
     <div id="days"></div>
   </div>
 
@@ -248,6 +262,7 @@ function render(dir) {
         <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
           <button type="button" data-act="archive">ארכיון</button>
           <button type="button" data-act="favs">מועדפים</button>
+          <button type="button" data-act="search">חיפוש</button>
         </div>
       </div>`;
   } else {
@@ -284,7 +299,7 @@ function update() {
   const away = mode !== "today";
   dayLabel.hidden = !away;
   dayLabel.textContent = away
-    ? `${mode === "favs" ? "מועדפים" : fmtDay(deckDate)} · חזרה להיום ✕`
+    ? `${mode === "favs" ? "מועדפים" : mode === "search" ? "תוצאות חיפוש" : fmtDay(deckDate)} · חזרה להיום ✕`
     : "";
   // Only today's position is worth resuming.
   if (mode === "today") store.set(POS_KEY, { date: todayKey(), i });
@@ -304,6 +319,7 @@ stage.addEventListener("click", (e) => {
   const act = e.target.closest?.("[data-act]")?.dataset.act;
   if (act === "archive") openArchive();
   if (act === "favs") openFavs();
+  if (act === "search") openSearch();
   if (act === "fav") {
     const btn = e.target.closest("[data-act='fav']");
     const on = toggleFav(items[i]);
@@ -337,10 +353,136 @@ document.getElementById("archiveBtn").onclick = openArchive;
 document.getElementById("favBtn").onclick = openFavs;
 document.getElementById("closeSheet").onclick = closeArchive;
 
-function closeArchive() { sheet.classList.remove("open"); }
+function closeArchive() {
+  sheet.classList.remove("open");
+  document.getElementById("searchWrap").classList.remove("on");
+}
+
+/* ---------- search ---------- */
+
+let searchIndex = null;   // lazily fetched, then kept for the session
+let searchHits = [];
+
+/**
+ * Hebrew-aware normalisation: drop niqqud and geresh/gershayim so that
+ * "דוד" matches "דָּוִד" and "צה\"ל" matches "צהל". Prefixed forms
+ * ("בחלל" for "חלל") fall out of plain substring matching.
+ */
+function norm(v) {
+  return String(v ?? "")
+    .replace(/[\u0591-\u05C7]/g, "")
+    .replace(/[\u05F3\u05F4'"`]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function getIndex() {
+  if (searchIndex) return searchIndex;
+  try {
+    const d = await fetch("search.json", { cache: "no-cache" }).then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    });
+    searchIndex = (d.items ?? []).map((it) => ({
+      it,
+      hay: norm(`${it.title} ${it.text} ${it.source} ${it.tag}`),
+    }));
+  } catch {
+    // Offline, or the index has not been built yet: fall back to today's deck,
+    // which is already in memory.
+    searchIndex = items.map((it) => ({
+      it, hay: norm(`${it.title} ${it.text} ${it.source} ${it.tag}`),
+    }));
+  }
+  return searchIndex;
+}
+
+function runSearch(raw) {
+  const terms = norm(raw).split(" ").filter(Boolean);
+  if (!terms.length) return [];
+  // Every term must appear somewhere in the card.
+  return searchIndex.filter((e) => terms.every((t) => e.hay.includes(t)))
+    .slice(0, 300)
+    .map((e) => e.it);
+}
+
+function snippet(text, term) {
+  const lower = String(text).toLowerCase();   // same length, so offsets line up
+  const at = lower.indexOf(term);
+  if (at < 0) return String(text).slice(0, 95);
+  const start = Math.max(0, at - 38);
+  return (start > 0 ? "…" : "") + String(text).slice(start, start + 112) + "…";
+}
+
+function highlight(plain, term) {
+  const safe = esc(plain);
+  if (!term) return safe;
+  const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  return safe.replace(rx, (m) => `<mark>${m}</mark>`);
+}
+
+async function openSearch() {
+  sheet.classList.add("open");
+  document.getElementById("sheetTitle").textContent = "חיפוש";
+  document.getElementById("searchWrap").classList.add("on");
+  daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">טוען…</p>`;
+  await getIndex();
+  const q = document.getElementById("q");
+  daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">
+    ${searchIndex.length} פריטים זמינים לחיפוש.</p>`;
+  q.focus();
+  if (q.value.trim()) paintResults(q.value);
+}
+
+function paintResults(raw) {
+  const terms = norm(raw).split(" ").filter(Boolean);
+  if (!terms.length) {
+    daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">
+      ${searchIndex.length} פריטים זמינים לחיפוש.</p>`;
+    return;
+  }
+  searchHits = runSearch(raw);
+  if (!searchHits.length) {
+    daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">
+      לא נמצאו תוצאות ל״${esc(raw.trim())}״.</p>`;
+    return;
+  }
+  const term = terms[0];
+  daysEl.innerHTML = "";
+  searchHits.forEach((it, n) => {
+    const b = document.createElement("button");
+    b.className = "day";
+    b.type = "button";
+    b.innerHTML = `<span>${highlight(it.title, term)}
+        <span class="hit">${highlight(snippet(it.text, term), term)}</span></span>
+      <span class="n">${esc(it.day ? fmtDay(it.day) : it.tag)}</span>`;
+    b.onclick = () => {
+      closeArchive();
+      items = searchHits;
+      mode = "search";
+      isArchive = false;
+      deckDate = null;
+      i = n;
+      render("fwd");
+    };
+    daysEl.appendChild(b);
+  });
+}
+
+document.getElementById("searchBtn").onclick = openSearch;
+{
+  const q = document.getElementById("q");
+  let t = null;
+  q.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(() => paintResults(q.value), 140);
+  });
+}
 
 function openFavs() {
   sheet.classList.add("open");
+  document.getElementById("searchWrap").classList.remove("on");
   document.getElementById("sheetTitle").textContent = "מועדפים";
   const list = favs();
   if (!list.length) {
@@ -369,6 +511,7 @@ function openFavs() {
 
 async function openArchive() {
   sheet.classList.add("open");
+  document.getElementById("searchWrap").classList.remove("on");
   document.getElementById("sheetTitle").textContent = "ארכיון";
   daysEl.innerHTML = `<p style="color:var(--muted);padding:16px 8px">טוען…</p>`;
   let index;
