@@ -1,7 +1,11 @@
 name: deploy to pages
 
-# Runs on every push to main — including the nightly commit from daily.yml,
-# so a new deck goes live automatically.
+# Publishes public/ to the gh-pages branch, which GitHub Pages serves.
+#
+# This deliberately uses plain git instead of the upload-pages-artifact /
+# deploy-pages pair: that pipeline depends on the Actions artifact API, which
+# failed here with "Found 0 artifact(s)" even though the upload succeeded.
+# Pushing a branch has no such moving parts and will keep working untouched.
 on:
   push:
     branches: [main]
@@ -11,15 +15,8 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-  # deploy-pages looks the uploaded artifact up through the Actions API.
-  # Declaring any permissions zeroes out the rest, so without this it silently
-  # finds 0 artifacts instead of getting a 403.
-  actions: read
+  contents: write
 
-# Never cancel a deploy midway, but only keep one queued.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -27,19 +24,36 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/configure-pages@v5
+      - name: Publish public/ to gh-pages
+        run: |
+          set -euo pipefail
+          # .nojekyll stops Pages from running Jekyll, which would strip
+          # anything it considers a special file.
+          touch public/.nojekyll
 
-      - name: Upload the app
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: public
+          git config user.name  "unbored bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+          # Build the branch content in a scratch worktree, so a bad run can
+          # never touch main.
+          rm -rf /tmp/site
+          mkdir -p /tmp/site
+          cp -R public/. /tmp/site/
+
+          git checkout --orphan gh-pages-tmp
+          git rm -rf --cached . >/dev/null
+          find . -maxdepth 1 -mindepth 1 ! -name .git -exec rm -rf {} +
+          cp -R /tmp/site/. .
+
+          git add -A
+          if git diff --staged --quiet; then
+            echo "site unchanged, nothing to publish"
+            exit 0
+          fi
+          git commit -m "site: $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push --force origin gh-pages-tmp:gh-pages
+          echo "published $(find . -type f ! -path './.git/*' | wc -l) files"
