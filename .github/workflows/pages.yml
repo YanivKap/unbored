@@ -14,6 +14,10 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # deploy-pages looks the uploaded artifact up through the Actions API.
+  # Declaring any permissions zeroes out the rest, so without this it silently
+  # finds 0 artifacts instead of getting a 403.
+  actions: read
 
 # Never cancel a deploy midway, but only keep one queued.
 concurrency:
