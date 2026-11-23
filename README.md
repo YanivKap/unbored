@@ -38,11 +38,20 @@ sources ──► fetch.ts ──► build.ts ──► public/feed.json ──�
 Reading position for today is remembered, so reopening the app resumes where
 you stopped rather than starting over or hiding what you already read.
 
-Search runs against `public/search.json`, a flat index over every archived
-deck that `build.ts` rebuilds each night. It is fetched lazily on the first
-search and then cached, so it costs nothing until used. Matching is plain
-substring over a normalised string, which drops niqqud and geresh and means a
-Hebrew prefix works naturally — `חלל` finds `בחלל`.
+Search runs against `public/search.json`, which indexes the **whole library**,
+not only the cards that happened to be dealt: every archived deck, plus the
+full timeless archive and every book card — about 1,800 items. An article that
+was fetched but never made it into a deck is still findable. The index is
+fetched lazily on the first search and then cached, so it costs nothing until
+used. Matching is plain substring over a normalised string, which drops niqqud
+and geresh and means a Hebrew prefix works naturally — `חלל` finds `בחלל`.
+
+### A day's deck is frozen
+
+Once composed, a day's deck is stored in `public/decks/<date>.json` and
+**re-running `build.ts` reuses it instead of reshuffling**. Cards can never
+disappear from under you mid-read, and a manual workflow run is harmless. Use
+`node scripts/build.ts --force` to deliberately recompose today.
 
 ### Two pools
 
