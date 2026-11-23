@@ -571,9 +571,56 @@ async function loadDeck(date) {
 }
 
 loadDeck(null);
+
+/**
+ * Keeping an installed copy current.
+ *
+ * An installed PWA can sit on an old service worker for a long time and keep
+ * serving the shell and deck it cached on install — which is how the installed
+ * app and the browser ended up showing different first cards. So: never let the
+ * browser cache sw.js itself, check for a new worker whenever the app is
+ * brought to the foreground, and reload once when one takes over.
+ */
 if ("serviceWorker" in navigator) {
-  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  addEventListener("load", async () => {
+    let reg;
+    try {
+      reg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
+    } catch { return; }
+    reg.update().catch(() => {});
+
+    let reloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloading) return;      // guard against a reload loop
+      reloading = true;
+      location.reload();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") reg.update().catch(() => {});
+    });
+  });
 }
+
+/**
+ * Reopening the app should show the current day, not whatever was loaded when
+ * it was last opened — an installed app can stay resident across midnight.
+ */
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || mode !== "today") return;
+  try {
+    const fresh = await fetch("feed.json", { cache: "no-store" }).then((r) => r.json());
+    const sameDeck = fresh.items?.[0]?.id === items[0]?.id;
+    if (!sameDeck) {
+      const newDay = (fresh.generated ?? "").slice(0, 10) !== deckDate;
+      items = fresh.items ?? [];
+      deckDate = (fresh.generated ?? "").slice(0, 10);
+      if (newDay) i = 0;
+      else i = Math.min(i, items.length);
+      render("fwd");
+    }
+  } catch { /* offline: keep showing what we have */ }
+});
 </script>
 </body>
 </html>

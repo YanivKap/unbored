@@ -4,7 +4,7 @@
  * offline. Static assets (icons, manifest) are cache-first — they are immutable
  * in practice and this keeps the app opening instantly.
  */
-const CACHE = "unbored-v4";
+const CACHE = "unbored-v5";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
