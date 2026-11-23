@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "unbored",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve.ts", "4173"],
+      "port": 4173
+    }
+  ]
+}

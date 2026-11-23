@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>unbored</title>
+<meta name="description" content="דברים מעניינים, אחד בכל פעם.">
+<meta name="theme-color" content="#0d0f12">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root {
+    --bg: #0d0f12;
+    --fg: #e9e6e1;
+    --muted: #868d97;
+    --line: #1e232a;
+    --accent: #6fa8ff;
+    --card: #14181d;
+    --read: 19px;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f6f4; --fg: #15181c; --muted: #5d646d;
+    --line: #e2e0dc; --accent: #1f5fd0; --card: #ffffff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    overscroll-behavior: none; touch-action: pan-y;
+  }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: "Noto Sans Hebrew", "Heebo", "Assistant", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    font-size: var(--read); line-height: 1.7;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* progress — deliberately visible, so the end is always in sight */
+  #progress { height: 3px; background: var(--line); flex: none; }
+  #bar { height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+
+  #stage { flex: 1; position: relative; display: flex; overflow: hidden; }
+  .card {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 14px; padding: 22px 20px 16px;
+    transition: transform .26s cubic-bezier(.22,.61,.36,1), opacity .26s ease;
+  }
+  .card.enter { transform: translateY(26px); opacity: 0; }
+  .card.leave-up { transform: translateY(-26px); opacity: 0; }
+  .card.leave-down { transform: translateY(26px); opacity: 0; }
+
+  .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .tag {
+    background: var(--card); border: 1px solid var(--line);
+    padding: 3px 10px; border-radius: 999px; font-size: 12.5px; color: var(--fg);
+  }
+  .tag.stock { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); }
+  h1 { margin: 0; font-size: 1.42em; line-height: 1.38; font-weight: 650; letter-spacing: -0.01em; }
+  .text { margin: 0; font-size: 1em; color: color-mix(in srgb, var(--fg) 88%, var(--bg)); overflow-y: auto; }
+  .src { margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .src a { color: var(--accent); text-decoration: none; }
+  .src a:active { opacity: .6; }
+  /* English cards read left-to-right */
+  .card[lang="en"] { direction: ltr; text-align: left; }
+
+  #nav { flex: none; display: flex; justify-content: space-between; align-items: center;
+         padding: 10px 20px 14px; font-size: 13px; color: var(--muted); }
+  #nav button {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  #nav button:disabled { opacity: .35; }
+  #count { font-variant-numeric: tabular-nums; }
+
+  .end { text-align: center; display: flex; flex-direction: column; justify-content: center;
+         gap: 10px; height: 100%; padding: 0 28px; }
+  .end h2 { font-size: 1.5em; margin: 0; font-weight: 650; }
+  .end p { margin: 0; color: var(--muted); }
+  .hint { color: var(--muted); font-size: 13px; text-align: center; padding-bottom: 6px; }
+  @media (min-height: 760px) { :root { --read: 20px; } }
+</style>
+</head>
+<body>
+  <div id="progress"><div id="bar"></div></div>
+  <div id="stage"></div>
+  <div id="nav">
+    <button id="prev" type="button">הקודם</button>
+    <span id="count"></span>
+    <button id="next" type="button">הבא</button>
+  </div>
+
+<script>
+const SEEN_KEY = "unbored.seen.v1";
+const POS_KEY  = "unbored.pos.v1";
+const stage = document.getElementById("stage");
+const bar = document.getElementById("bar");
+const countEl = document.getElementById("count");
+const prevBtn = document.getElementById("prev");
+const nextBtn = document.getElementById("next");
+
+const store = {
+  get(k, fb) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+let items = [];
+let i = 0;
+
+function fmtDate(iso) {
+  try {
+    const d = new Date(iso);
+    const days = Math.round((Date.now() - d) / 86400000);
+    if (days <= 0) return "היום";
+    if (days === 1) return "אתמול";
+    if (days < 30) return `לפני ${days} ימים`;
+    return d.toLocaleDateString("he-IL", { year: "numeric", month: "long" });
+  } catch { return ""; }
+}
+
+function render(dir) {
+  const old = stage.firstElementChild;
+  if (old) {
+    old.className = "card " + (dir === "back" ? "leave-down" : "leave-up");
+    setTimeout(() => old.remove(), 280);
+  }
+
+  const card = document.createElement("article");
+  card.className = "card enter";
+
+  if (i >= items.length) {
+    card.innerHTML = `<div class="end">
+        <h2>זה הכל להיום</h2>
+        <p>קראת ${items.length} פריטים. מחר יהיו חדשים.</p>
+      </div>`;
+  } else {
+    const it = items[i];
+    card.lang = it.lang;
+    card.innerHTML = `
+      <div class="meta">
+        <span class="tag ${it.kind === "stock" ? "stock" : ""}">${esc(it.tag)}</span>
+        <span>${esc(it.source)}</span><span>·</span><span>${esc(fmtDate(it.date))}</span>
+      </div>
+      <h1>${esc(it.title)}</h1>
+      <p class="text">${esc(it.text)}</p>
+      <div class="src"><a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">
+        ${it.lang === "en" ? "Read the original" : "לכתבה המקורית"} ↗</a></div>`;
+    markSeen(it.id);
+  }
+
+  stage.appendChild(card);
+  requestAnimationFrame(() => requestAnimationFrame(() => { card.className = "card"; }));
+  update();
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function markSeen(id) {
+  const seen = store.get(SEEN_KEY, []);
+  if (!seen.includes(id)) { seen.unshift(id); store.set(SEEN_KEY, seen.slice(0, 4000)); }
+}
+
+function update() {
+  const shown = Math.min(i + 1, items.length);
+  bar.style.width = `${(Math.min(i, items.length) / Math.max(items.length, 1)) * 100}%`;
+  countEl.textContent = i >= items.length ? "סוף" : `${shown} / ${items.length}`;
+  prevBtn.disabled = i === 0;
+  nextBtn.disabled = i >= items.length;
+  store.set(POS_KEY, { date: todayKey(), i });
+}
+
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+function go(n) {
+  const target = Math.max(0, Math.min(items.length, n));
+  if (target === i) return;
+  const dir = target < i ? "back" : "fwd";
+  i = target;
+  render(dir);
+}
+
+nextBtn.onclick = () => go(i + 1);
+prevBtn.onclick = () => go(i - 1);
+addEventListener("keydown", (e) => {
+  if (["ArrowDown", "ArrowRight", " ", "PageDown"].includes(e.key)) { e.preventDefault(); go(i + 1); }
+  if (["ArrowUp", "ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(i - 1); }
+});
+
+// swipe
+let y0 = null, x0 = null;
+stage.addEventListener("touchstart", (e) => { y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; }, { passive: true });
+stage.addEventListener("touchend", (e) => {
+  if (y0 === null) return;
+  const dy = e.changedTouches[0].clientY - y0;
+  const dx = e.changedTouches[0].clientX - x0;
+  if (Math.abs(dy) > 45 && Math.abs(dy) > Math.abs(dx)) go(dy < 0 ? i + 1 : i - 1);
+  y0 = x0 = null;
+}, { passive: true });
+
+async function load() {
+  let feed;
+  try {
+    const res = await fetch("feed.json", { cache: "no-cache" });
+    feed = await res.json();
+  } catch {
+    stage.innerHTML = `<div class="card"><div class="end">
+      <h2>אין חיבור</h2><p>נסה שוב כשיש אינטרנט.</p></div></div>`;
+    return;
+  }
+  const seen = new Set(store.get(SEEN_KEY, []));
+  const all = feed.items ?? [];
+  // Keep unread first; if everything was read, show the full deck rather than nothing.
+  const unread = all.filter((x) => !seen.has(x.id));
+  items = unread.length ? unread : all;
+
+  const pos = store.get(POS_KEY, null);
+  i = pos && pos.date === todayKey() ? Math.min(pos.i, items.length) : 0;
+  render("fwd");
+}
+
+load();
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>

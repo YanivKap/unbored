@@ -1,0 +1,87 @@
+{
+  "comment": "Declarative source list. type: wp (WordPress REST), rss, wiki. weight: higher = preferred in the deck. archive: true = usable for backfill (timeless content). Removed: hn/ars (RSS carries no real excerpt), calcalist (403), davidson (site mid-migration), themarker + ynet-5363 (noise).",
+  "sources": [
+    {
+      "id": "hayadan",
+      "name": "הידען",
+      "type": "wp",
+      "base": "https://www.hayadan.org.il",
+      "tag": "מדע",
+      "lang": "he",
+      "weight": 10,
+      "archive": true,
+      "archivePosts": 28156
+    },
+    {
+      "id": "zavit",
+      "name": "זווית",
+      "type": "wp",
+      "base": "https://www.zavit.org.il",
+      "tag": "סביבה",
+      "lang": "he",
+      "weight": 9,
+      "archive": true,
+      "archivePosts": 2504
+    },
+    {
+      "id": "geektime",
+      "name": "גיקטיים",
+      "type": "wp",
+      "base": "https://www.geektime.co.il",
+      "tag": "טכנולוגיה",
+      "lang": "he",
+      "weight": 8,
+      "archive": true,
+      "archivePosts": 41866
+    },
+    {
+      "id": "ynet-mada",
+      "name": "ynet מדע",
+      "type": "rss",
+      "url": "https://www.ynet.co.il/Integration/StoryRss2142.xml",
+      "tag": "מדע",
+      "lang": "he",
+      "weight": 8,
+      "archive": false
+    },
+    {
+      "id": "ynet-digital",
+      "name": "ynet דיגיטל",
+      "type": "rss",
+      "url": "https://www.ynet.co.il/Integration/StoryRss544.xml",
+      "tag": "טכנולוגיה",
+      "lang": "he",
+      "weight": 6,
+      "archive": false
+    },
+    {
+      "id": "wiki-he",
+      "name": "ויקיפדיה",
+      "type": "wiki",
+      "tag": "ידע",
+      "lang": "he",
+      "weight": 7,
+      "archive": true
+    },
+    {
+      "id": "quanta",
+      "name": "Quanta",
+      "type": "rss",
+      "url": "https://www.quantamagazine.org/feed/",
+      "tag": "science",
+      "lang": "en",
+      "weight": 4,
+      "archive": false
+    }
+  ],
+  "deck": {
+    "size": 50,
+    "maxPerSource": 12,
+    "maxEnglish": 5,
+    "minExcerptChars": 150,
+    "maxExcerptChars": 320,
+    "flowMaxAgeDays": 10,
+    "seenHistoryCap": 8000,
+    "minStock": 15
+  }
+}

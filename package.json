@@ -1,0 +1,15 @@
+{
+  "name": "unbored",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A quiet Hebrew reading deck to open instead of Instagram.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "fetch": "node scripts/fetch.ts",
+    "build": "node scripts/build.ts",
+    "archive": "node scripts/archive.ts",
+    "daily": "node scripts/fetch.ts && node scripts/build.ts",
+    "serve": "node --run build && node scripts/serve.ts"
+  }
+}
