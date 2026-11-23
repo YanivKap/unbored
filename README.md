@@ -6,6 +6,8 @@ One card at a time, ~50 a day, and then it **ends**.
 No feed, no likes, no counters, no infinite scroll, no algorithm.
 No LLM API, no server, no database. **Running cost: $0.**
 
+**→ https://yanivkap.github.io/unbored/**
+
 ![50 cards a day](https://img.shields.io/badge/deck-50%20cards%2Fday-6fa8ff) ![cost](https://img.shields.io/badge/cost-%240-brightgreen)
 
 ---
@@ -131,6 +133,15 @@ opponent, not the content.
 
 ## Hosting
 
-Cloudflare Pages serves `public/` (free tier: unlimited bandwidth, 500 builds a
-month; the nightly job uses ~30). GitHub Actions runs the pipeline and commits
-the new deck, which triggers the redeploy.
+GitHub Pages serves the `gh-pages` branch at
+<https://yanivkap.github.io/unbored/>. Three workflows keep it running, all on
+the free tier:
+
+| Workflow | When | What |
+|---|---|---|
+| `daily.yml` | 03:00 UTC nightly | fetch + build, commits `public/feed.json` |
+| `pages.yml` | on push to `public/**` | publishes `public/` to `gh-pages` |
+| `archive.yml` | 1st of the month | tops the timeless archive up |
+
+So the nightly deck commit triggers the deploy on its own, and nothing needs
+touching.
