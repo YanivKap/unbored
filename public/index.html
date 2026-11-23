@@ -142,7 +142,8 @@ function render(dir) {
     card.innerHTML = `
       <div class="meta">
         <span class="tag ${it.kind === "stock" ? "stock" : ""}">${esc(it.tag)}</span>
-        <span>${esc(it.source)}</span><span>·</span><span>${esc(fmtDate(it.date))}</span>
+        <span>${esc(it.source)}</span>
+        ${it.tag === "ספרים" ? "" : `<span>·</span><span>${esc(fmtDate(it.date))}</span>`}
       </div>
       <h1>${esc(it.title)}</h1>
       <p class="text">${esc(it.text)}</p>
