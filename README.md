@@ -24,6 +24,19 @@ sources ──► fetch.ts ──► build.ts ──► public/feed.json ──�
                      archive.json + books.json
 ```
 
+### In the app
+
+| | |
+|---|---|
+| **Swipe up / down** | next and previous card — nothing is ever skipped past for good |
+| **★ star** | saves a card to favourites, kept as a whole item in local storage so it stays readable after its deck rotates out, and offline |
+| **ארכיון** | any previous day's deck, from `public/decks/` |
+| **מועדפים** | everything you starred, readable as its own deck |
+| **day label** | shown only when you are away from today; tap it to come back |
+
+Reading position for today is remembered, so reopening the app resumes where
+you stopped rather than starting over or hiding what you already read.
+
 ### Two pools
 
 | Pool | What it is | Where it comes from |
