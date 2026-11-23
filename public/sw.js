@@ -4,7 +4,7 @@
  * offline. Static assets (icons, manifest) are cache-first — they are immutable
  * in practice and this keeps the app opening instantly.
  */
-const CACHE = "unbored-v2";
+const CACHE = "unbored-v3";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -29,7 +29,9 @@ self.addEventListener("fetch", (e) => {
   const isDoc = request.mode === "navigate"
     || url.pathname.endsWith("/")
     || url.pathname.endsWith("index.html")
-    || url.pathname.endsWith("feed.json");
+    || url.pathname.endsWith("feed.json")
+    // Archived decks: fresh when online, still readable offline once seen.
+    || url.pathname.includes("/decks/");
 
   if (isDoc) {
     e.respondWith(

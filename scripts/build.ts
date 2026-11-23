@@ -109,10 +109,25 @@ const feed = {
 mkdirSync(u("../public/"), { recursive: true });
 writeFileSync(u("../public/feed.json"), JSON.stringify(feed, null, 1));
 
+// Keep every deck, so past days stay readable in the app's archive.
+const dayKey = feed.generated.slice(0, 10);
+mkdirSync(u("../public/decks/"), { recursive: true });
+writeFileSync(u(`../public/decks/${dayKey}.json`), JSON.stringify(feed, null, 1));
+
+interface DayEntry { date: string; count: number }
+const index = readJson<{ days: DayEntry[] }>("../public/decks/index.json", { days: [] });
+const days = index.days.filter((d) => d.date !== dayKey);
+days.unshift({ date: dayKey, count: feed.count });
+days.sort((a, b) => b.date.localeCompare(a.date));
+writeFileSync(
+  u("../public/decks/index.json"),
+  JSON.stringify({ updated: feed.generated, days: days.slice(0, 180) }, null, 1),
+);
+
 const served = [...ordered.map((c) => c.id), ...seen].slice(0, deck.seenHistoryCap);
 writeFileSync(u("../state/seen.json"), JSON.stringify(served, null, 0));
 
-console.log(`deck: ${ordered.length}/${deck.size}  (flow ${flowCards.length}, stock ${stockCards.length})`);
+console.log(`deck: ${ordered.length}/${deck.size}  (flow ${flowCards.length}, stock ${stockCards.length})  archived as ${dayKey}`);
 console.log(`pools: ${flow.length} flow eligible, ${stock.length} stock eligible`);
 console.log("by source:", Object.entries(
   ordered.reduce<Record<string, number>>((a, c) => { a[c.source] = (a[c.source] ?? 0) + 1; return a; }, {}),
